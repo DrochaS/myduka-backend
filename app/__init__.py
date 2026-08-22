@@ -30,6 +30,10 @@ def create_app(config_object=Config):
 
     from app import models  # noqa: F401
 
+    from app.routes.auth import auth_bp
+
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
+
     @app.get("/health")
     def health():
         return {"status": "ok"}
