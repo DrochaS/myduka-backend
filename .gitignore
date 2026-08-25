@@ -1,1 +1,13 @@
 venv/
+.venv/
+.venv-check/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.env
+*.db
+instance/
+.coverage
+htmlcov/
