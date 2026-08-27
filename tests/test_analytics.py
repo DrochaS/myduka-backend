@@ -1,19 +1,5 @@
 """Analytics and health endpoint tests."""
 
-import pytest
-
-from app import create_app
-
-
-@pytest.fixture
-def app():
-    return create_app(testing=True)
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
 
 def test_health_ok(client):
     response = client.get("/health")
@@ -35,3 +21,30 @@ def test_sales_analytics_shape(client):
 
     breakdown = payload["categoryBreakdown"]
     assert len(breakdown["labels"]) == len(breakdown["values"])
+
+
+def test_sales_analytics_with_stock_data(client, clerk_user, product):
+    from tests.conftest import auth_header
+
+    headers = auth_header(client, "clerk@myduka.test", "clerk-pass")
+    create = client.post(
+        "/api/clerk/stock-entries",
+        headers=headers,
+        json={
+            "product_id": product.id,
+            "quantity_received": 10,
+            "stock_quantity": 20,
+            "spoilt_quantity": 0,
+            "buy_price": 80.0,
+            "sell_price": 100.0,
+            "payment_status": "paid",
+        },
+    )
+    assert create.status_code == 201
+
+    response = client.get("/api/analytics/sales")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert "Groceries" in payload["categoryBreakdown"]["labels"] or len(
+        payload["categoryBreakdown"]["labels"]
+    ) >= 1
