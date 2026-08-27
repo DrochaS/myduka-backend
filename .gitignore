@@ -11,3 +11,5 @@ __pycache__/
 instance/
 .coverage
 htmlcov/
+__pycache__/
+*.pyc
