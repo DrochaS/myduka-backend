@@ -20,11 +20,8 @@ class Role(str, enum.Enum):
 
 
 class PaymentStatus(str, enum.Enum):
-    PENDING = "pending"
-    COMPLETED = "completed"
     PAID = "paid"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+    NOT_PAID = "not_paid"
 
 
 class SupplyRequestStatus(str, enum.Enum):
@@ -52,7 +49,13 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    supply_requests = db.relationship('SupplyRequest', backref='requester', lazy=True)
+    supply_requests = db.relationship(
+        'SupplyRequest',
+        backref='requester',
+        lazy=True,
+        foreign_keys='SupplyRequest.clerk_id',
+    )
+    stock_entries = db.relationship('StockEntry', backref='clerk', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -79,12 +82,13 @@ class Store(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    location = db.Column(db.String(150), nullable=False)
+    location = db.Column(db.String(150), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
     users = db.relationship('User', backref='store', lazy=True)
-    inventory = db.relationship('StoreInventory', backref='store', lazy=True, cascade="all, delete-orphan")
+    products = db.relationship('Product', backref='store', lazy=True, cascade="all, delete-orphan")
+    stock_entries = db.relationship('StockEntry', backref='store', lazy=True)
     supply_requests = db.relationship('SupplyRequest', backref='store', lazy=True)
 
     def to_dict(self):
@@ -97,76 +101,79 @@ class Store(db.Model):
 
 
 class Product(db.Model):
+    """A product as sold/stocked at a specific store."""
     __tablename__ = 'products'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    category = db.Column(db.String(50), nullable=False)
-    buying_price = db.Column(db.Float, nullable=False)
-    selling_price = db.Column(db.Float, nullable=False)
-    image_url = db.Column(db.String(255), nullable=True)
+    category = db.Column(db.String(50), nullable=True)
+    sku = db.Column(db.String(50), nullable=True)
+    image_url = db.Column(db.String(500), nullable=True)
+    store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=False)
+    buy_price = db.Column(db.Float, default=0.0, nullable=False)
+    sell_price = db.Column(db.Float, default=0.0, nullable=False)
+    quantity_in_stock = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    inventories = db.relationship('StoreInventory', backref='product', lazy=True, cascade="all, delete-orphan")
+    stock_entries = db.relationship('StockEntry', backref='product', lazy=True, cascade="all, delete-orphan")
     supply_requests = db.relationship('SupplyRequest', backref='product', lazy=True)
 
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
-            'description': self.description,
             'category': self.category,
-            'buying_price': self.buying_price,
-            'selling_price': self.selling_price,
+            'sku': self.sku,
             'image_url': self.image_url,
+            'store_id': self.store_id,
+            'buy_price': self.buy_price,
+            'sell_price': self.sell_price,
+            'quantity_in_stock': self.quantity_in_stock,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
 
-class StoreInventory(db.Model):
-    __tablename__ = 'store_inventories'
-
-    id = db.Column(db.Integer, primary_key=True)
-    store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=False)
-    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
-    stock_quantity = db.Column(db.Integer, default=0, nullable=False)
-    reorder_level = db.Column(db.Integer, default=10, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    __table_args__ = (db.UniqueConstraint('store_id', 'product_id', name='_store_product_uc'),)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'store_id': self.store_id,
-            'product_id': self.product_id,
-            'stock_quantity': self.stock_quantity,
-            'reorder_level': self.reorder_level,
-            'product_name': self.product.name if self.product else None,
-            'store_name': self.store.name if self.store else None
-        }
-
-
 class StockEntry(db.Model):
+    """A delivery of stock recorded by a clerk, plus its supplier payment status."""
     __tablename__ = 'stock_entries'
 
     id = db.Column(db.Integer, primary_key=True)
     store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False, default=0)
+    clerk_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    quantity_received = db.Column(db.Integer, nullable=False, default=0)
+    stock_quantity = db.Column(db.Integer, nullable=False, default=0)
+    spoilt_quantity = db.Column(db.Integer, nullable=False, default=0)
+
+    buy_price = db.Column(db.Float, nullable=False, default=0.0)
+    sell_price = db.Column(db.Float, nullable=False, default=0.0)
+    payment_status = db.Column(
+        db.Enum(PaymentStatus), default=PaymentStatus.NOT_PAID, nullable=False
+    )
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    store = db.relationship('Store', backref=db.backref('stock_entries', lazy=True))
-    product = db.relationship('Product', backref=db.backref('stock_entries', lazy=True))
-
     def to_dict(self):
+        payment_val = (
+            self.payment_status.value
+            if isinstance(self.payment_status, PaymentStatus)
+            else self.payment_status
+        )
         return {
             'id': self.id,
             'store_id': self.store_id,
             'product_id': self.product_id,
-            'quantity': self.quantity,
+            'clerk_id': self.clerk_id,
+            'quantity_received': self.quantity_received,
+            'stock_quantity': self.stock_quantity,
+            'spoilt_quantity': self.spoilt_quantity,
+            'buy_price': self.buy_price,
+            'sell_price': self.sell_price,
+            'payment_status': payment_val,
             'product_name': self.product.name if self.product else None,
             'store_name': self.store.name if self.store else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
@@ -180,11 +187,23 @@ class SupplyRequest(db.Model):
     store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     clerk_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    requested_quantity = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(20), default=SupplyRequestStatus.PENDING.value, nullable=False)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    quantity_requested = db.Column(db.Integer, nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(
+        db.Enum(SupplyRequestStatus), default=SupplyRequestStatus.PENDING, nullable=False
+    )
+
+    reviewed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by_id])
+
     def to_dict(self):
+        status_val = (
+            self.status.value if isinstance(self.status, SupplyRequestStatus) else self.status
+        )
         return {
             'id': self.id,
             'store_id': self.store_id,
@@ -192,8 +211,11 @@ class SupplyRequest(db.Model):
             'product_id': self.product_id,
             'product_name': self.product.name if self.product else None,
             'clerk_id': self.clerk_id,
-            'requested_quantity': self.requested_quantity,
-            'status': self.status,
+            'reviewed_by_id': self.reviewed_by_id,
+            'quantity_requested': self.quantity_requested,
+            'notes': self.notes,
+            'status': status_val,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
@@ -208,6 +230,7 @@ class InviteToken(db.Model):
     invited_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=True)
     is_used = db.Column(db.Boolean, default=False, nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -231,6 +254,7 @@ class InviteToken(db.Model):
 
     def mark_used(self):
         self.is_used = True
+        self.used_at = datetime.utcnow()
 
     def to_dict(self):
         role_val = self.role.value if isinstance(self.role, Role) else self.role
@@ -242,25 +266,7 @@ class InviteToken(db.Model):
             'invited_by_id': self.invited_by_id,
             'store_id': self.store_id,
             'is_used': self.is_used,
+            'used_at': self.used_at.isoformat() if self.used_at else None,
             'expires_at': self.expires_at.isoformat() if self.expires_at else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-
-class Payment(db.Model):
-    __tablename__ = 'payments'
-
-    id = db.Column(db.Integer, primary_key=True)
-    store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=True)
-    amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(20), default=PaymentStatus.PENDING.value, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'store_id': self.store_id,
-            'amount': self.amount,
-            'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
