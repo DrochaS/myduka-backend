@@ -214,6 +214,23 @@ def update_payment(admin: User, entry_id: int):
 @admin_bp.get("/reports/clerk-performance")
 @admin_required
 def clerk_performance(admin: User):
+    if admin.store_id is None:
+        return jsonify(
+            {
+                "clerks": [],
+                "entriesByClerk": {
+                    "labels": [],
+                    "values": [],
+                    "label": "Stock entries",
+                },
+                "spoiltByClerk": {
+                    "labels": [],
+                    "values": [],
+                    "label": "Spoilt units",
+                },
+            }
+        ), 200
+
     store_id, err = _admin_store_id(admin)
     if err:
         return err

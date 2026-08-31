@@ -113,6 +113,7 @@ class Product(db.Model):
     name = db.Column(db.String(120), nullable=False)
     category = db.Column(db.String(80), nullable=True)
     sku = db.Column(db.String(64), nullable=True)
+    image_url = db.Column(db.String(500), nullable=True)
     store_id = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False)
     buy_price = db.Column(db.Float, nullable=False, default=0.0)
     sell_price = db.Column(db.Float, nullable=False, default=0.0)
@@ -136,6 +137,7 @@ class Product(db.Model):
             "name": self.name,
             "category": self.category,
             "sku": self.sku,
+            "image_url": self.image_url,
             "store_id": self.store_id,
             "buy_price": self.buy_price,
             "sell_price": self.sell_price,
@@ -179,6 +181,9 @@ class StockEntry(db.Model):
             "id": self.id,
             "product_id": self.product_id,
             "product_name": self.product.name if self.product else None,
+            "product_category": self.product.category if self.product else None,
+            "product_sku": self.product.sku if self.product else None,
+            "product_image_url": self.product.image_url if self.product else None,
             "store_id": self.store_id,
             "clerk_id": self.clerk_id,
             "clerk_email": self.clerk.email if self.clerk else None,

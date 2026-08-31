@@ -5,6 +5,53 @@ from app.models import InviteToken, Role, User
 from tests.conftest import auth_header
 
 
+def test_register_creates_selected_role_and_returns_token(client):
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "newmerchant@myduka.test",
+            "password": "merchant-secret",
+            "full_name": "New Merchant",
+            "role": "admin",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload["user"]["email"] == "newmerchant@myduka.test"
+    assert payload["user"]["role"] == "admin"
+    assert "access_token" in payload
+
+
+def test_register_rejects_existing_email(client, merchant):
+    response = client.post(
+        "/api/auth/register",
+        json={"email": merchant.email, "password": "merchant-secret"},
+    )
+
+    assert response.status_code == 409
+
+
+def test_unassigned_admin_can_load_an_empty_performance_report(client):
+    registration = client.post(
+        "/api/auth/register",
+        json={
+            "email": "admin-without-store@myduka.test",
+            "password": "admin-secret",
+            "role": "admin",
+        },
+    )
+    token = registration.get_json()["access_token"]
+
+    response = client.get(
+        "/api/admin/reports/clerk-performance",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["entriesByClerk"]["labels"] == []
+
+
 def test_login_success(client, merchant):
     response = client.post(
         "/api/auth/login",

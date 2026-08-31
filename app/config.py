@@ -1,5 +1,10 @@
 import os
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -15,6 +20,14 @@ class Config:
     # Frontend base URL used when building invite links
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
+    # Browser origins allowed to call the API. Keep this separate from the
+    # invite-link URL so deployments can allow more than one frontend origin.
+    CORS_ORIGINS = tuple(
+        origin.strip()
+        for origin in os.getenv("CORS_ORIGINS", FRONTEND_URL).split(",")
+        if origin.strip()
+    )
+
     # Mail — when not configured, invite links are logged instead of sent
     MAIL_SERVER = os.getenv("MAIL_SERVER", "")
     MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
@@ -29,4 +42,5 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     JWT_SECRET_KEY = "test-jwt-secret-key-at-least-32-bytes"
     INVITE_TOKEN_HOURS = 24
+    CORS_ORIGINS = ("http://localhost:5173",)
     MAIL_SERVER = ""

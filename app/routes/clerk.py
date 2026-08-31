@@ -12,12 +12,13 @@ from app.models import (
     SupplyRequestStatus,
     User,
 )
-from app.schemas import StockEntrySchema, SupplyRequestCreateSchema
+from app.schemas import SpoiltGoodsSchema, StockEntrySchema, SupplyRequestCreateSchema
 from app.utils.decorators import clerk_required
 
 clerk_bp = Blueprint("clerk", __name__)
 
 stock_schema = StockEntrySchema()
+spoilt_schema = SpoiltGoodsSchema()
 supply_schema = SupplyRequestCreateSchema()
 
 
@@ -25,6 +26,17 @@ def _require_store(clerk: User):
     if clerk.store_id is None:
         return None, (jsonify({"error": "Clerk is not assigned to a store"}), 400)
     return clerk.store_id, None
+
+
+@clerk_bp.get("/products")
+@clerk_required
+def list_products(clerk: User):
+    store_id, err = _require_store(clerk)
+    if err:
+        return err
+
+    products = Product.query.filter_by(store_id=store_id, is_active=True).order_by(Product.name).all()
+    return jsonify([product.to_dict() for product in products]), 200
 
 
 @clerk_bp.get("/stock-entries")
@@ -78,6 +90,36 @@ def create_stock_entry(clerk: User):
     db.session.add(entry)
     db.session.commit()
     return jsonify(entry.to_dict()), 201
+
+
+@clerk_bp.patch("/stock-entries/<int:entry_id>/spoilt")
+@clerk_required
+def report_spoilt_goods(clerk: User, entry_id: int):
+    store_id, err = _require_store(clerk)
+    if err:
+        return err
+
+    try:
+        data = spoilt_schema.load(request.get_json() or {})
+    except ValidationError as ve:
+        return jsonify({"error": "Validation failed", "details": ve.messages}), 400
+
+    entry = StockEntry.query.filter_by(
+        id=entry_id, clerk_id=clerk.id, store_id=store_id
+    ).first()
+    if entry is None:
+        return jsonify({"error": "Stock entry not found"}), 404
+
+    product = db.session.get(Product, entry.product_id)
+    quantity = data["spoilt_quantity"]
+    if product is None or quantity > product.quantity_in_stock:
+        return jsonify({"error": "Spoilt quantity exceeds stock on hand"}), 400
+
+    entry.spoilt_quantity += quantity
+    entry.stock_quantity -= quantity
+    product.quantity_in_stock -= quantity
+    db.session.commit()
+    return jsonify(entry.to_dict()), 200
 
 
 @clerk_bp.get("/supply-requests")

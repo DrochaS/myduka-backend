@@ -92,6 +92,7 @@ def create_product(merchant: User):
         name=data["name"],
         category=data.get("category"),
         sku=data.get("sku"),
+        image_url=data.get("image_url"),
         store_id=store.id,
         buy_price=data.get("buy_price", 0.0),
         sell_price=data.get("sell_price", 0.0),

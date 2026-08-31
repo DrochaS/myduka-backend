@@ -53,6 +53,39 @@ def test_clerk_create_supply_request(client, clerk_user, product):
     assert len(listed.get_json()) == 1
 
 
+def test_clerk_can_list_store_products(client, clerk_user, product):
+    headers = auth_header(client, "clerk@myduka.test", "clerk-pass")
+    response = client.get("/api/clerk/products", headers=headers)
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.get_json()] == [product.id]
+
+
+def test_clerk_can_report_spoilt_goods(client, clerk_user, product):
+    headers = auth_header(client, "clerk@myduka.test", "clerk-pass")
+    created = client.post(
+        "/api/clerk/stock-entries",
+        headers=headers,
+        json={
+            "product_id": product.id,
+            "quantity_received": 5,
+            "stock_quantity": 10,
+            "buy_price": 80,
+            "sell_price": 100,
+        },
+    )
+
+    response = client.patch(
+        f"/api/clerk/stock-entries/{created.get_json()['id']}/spoilt",
+        headers=headers,
+        json={"spoilt_quantity": 2},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["spoilt_quantity"] == 2
+    assert response.get_json()["stock_quantity"] == 8
+
+
 def test_clerk_stock_entry_requires_auth(client, product):
     response = client.post(
         "/api/clerk/stock-entries",
