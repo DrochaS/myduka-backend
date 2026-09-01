@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from flask_cors import CORS
 from sqlalchemy import inspect, text
@@ -5,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Config
 from app.extensions import db, jwt, mail, migrate
+from models import User, Role, Store, Product, StockEntry, SupplyRequest, SupplyRequestStatus, PaymentStatus
 
 
 def create_app(config_object=Config):
@@ -24,7 +27,7 @@ def create_app(config_object=Config):
 
     CORS(
         application,
-        resources={r"/api/*": {"origins": application.config["CORS_ORIGINS"]}},
+        origins=os.getenv("CORS_ORIGINS", application.config.get("FRONTEND_URL", "http://localhost:5173")).split(","),
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
