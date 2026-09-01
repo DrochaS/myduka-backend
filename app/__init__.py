@@ -7,7 +7,6 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Config
 from app.extensions import db, jwt, mail, migrate
-from models import User, Role, Store, Product, StockEntry, SupplyRequest, SupplyRequestStatus, PaymentStatus
 
 
 def create_app(config_object=Config):
