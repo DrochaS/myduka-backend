@@ -92,9 +92,9 @@ class CheckoutItemSchema(Schema):
 class CheckoutSchema(Schema):
     store_id = fields.Int(required=True)
     customer_name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
-    customer_phone = fields.Str(required=True, validate=validate.Length(min=1, max=30))
+    customer_phone = fields.Str(required=True, validate=validate.Length(min=7, max=20))
     customer_email = fields.Email(required=False, allow_none=True)
     payment_method = fields.Str(
-        required=True, validate=validate.OneOf(["cash", "mpesa", "card"])
+        required=True, validate=validate.OneOf(["card", "cash", "mpesa"])
     )
     items = fields.List(fields.Nested(CheckoutItemSchema), required=True, validate=validate.Length(min=1))

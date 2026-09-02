@@ -46,6 +46,25 @@ class SupplyRequestStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class PaymentMethod(str, enum.Enum):
+    CARD = "card"
+    CASH = "cash"
+    MPESA = "mpesa"
+
+
+class OrderPaymentStatus(str, enum.Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+
+
+class OrderStatus(str, enum.Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+
+
 # ==============================================================================
 # MODELS
 # ==============================================================================
@@ -291,6 +310,89 @@ class SupplyRequest(db.Model):
             'status': status_val,
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Order(db.Model):
+    """A customer order placed through the public storefront."""
+    __tablename__ = 'orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=False)
+    customer_name = db.Column(db.String(120), nullable=False)
+    customer_phone = db.Column(db.String(20), nullable=False)
+    customer_email = db.Column(db.String(120), nullable=True)
+    payment_method = db.Column(db.Enum(PaymentMethod), nullable=False)
+    payment_status = db.Column(
+        db.Enum(OrderPaymentStatus), default=OrderPaymentStatus.PENDING, nullable=False
+    )
+    status = db.Column(db.Enum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
+    total_amount = db.Column(db.Float, nullable=False, default=0.0)
+
+    # M-Pesa STK push tracking (populated only when payment_method == MPESA)
+    mpesa_checkout_request_id = db.Column(db.String(100), nullable=True)
+    mpesa_receipt_number = db.Column(db.String(100), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    store = db.relationship('Store', backref='orders')
+    items = db.relationship(
+        'OrderItem', backref='order', lazy=True, cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        payment_method_val = (
+            self.payment_method.value
+            if isinstance(self.payment_method, PaymentMethod)
+            else self.payment_method
+        )
+        payment_status_val = (
+            self.payment_status.value
+            if isinstance(self.payment_status, OrderPaymentStatus)
+            else self.payment_status
+        )
+        status_val = self.status.value if isinstance(self.status, OrderStatus) else self.status
+        return {
+            'id': self.id,
+            'store_id': self.store_id,
+            'customer_name': self.customer_name,
+            'customer_phone': self.customer_phone,
+            'customer_email': self.customer_email,
+            'payment_method': payment_method_val,
+            'payment_status': payment_status_val,
+            'status': status_val,
+            'total_amount': self.total_amount,
+            'items': [item.to_dict() for item in self.items],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'mpesa_checkout_request_id': self.mpesa_checkout_request_id,
+            'mpesa_customer_message': (
+                'Check your phone to complete payment'
+                if self.payment_method == PaymentMethod.MPESA
+                and self.payment_status == OrderPaymentStatus.PENDING
+                else None
+            ),
+        }
+
+
+class OrderItem(db.Model):
+    __tablename__ = 'order_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+
+    product = db.relationship('Product')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'product_id': self.product_id,
+            'product_name': self.product.name if self.product else None,
+            'quantity': self.quantity,
+            'unit_price': self.unit_price,
+            'subtotal': round(self.quantity * self.unit_price, 2),
         }
 
 
