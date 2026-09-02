@@ -16,6 +16,9 @@ with app.app_context():
     print("Clearing existing data...")
     db.drop_all()
 
+    print("Creating tables...")
+    db.create_all()
+
     print("Seeding stores...")
     store_1 = Store(name="CBD Main Branch", location="Moi Avenue, Nairobi")
     store_2 = Store(name="Westlands Outlet", location="Woodvale Grove, Nairobi")
