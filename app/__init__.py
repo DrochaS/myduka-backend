@@ -24,12 +24,20 @@ def create_app(config_object=Config):
             },
         )
 
+    cors_origins_env = os.getenv("CORS_ORIGINS")
+    if cors_origins_env:
+        raw_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+        cors_origins = "*" if "*" in raw_origins else raw_origins
+    else:
+        frontend_url = application.config.get("FRONTEND_URL", "http://localhost:5173")
+        cors_origins = [o.strip() for o in frontend_url.split(",") if o.strip()]
+
     CORS(
         application,
-        origins=os.getenv("CORS_ORIGINS", application.config.get("FRONTEND_URL", "http://localhost:5173")).split(","),
+        resources={r"/*": {"origins": cors_origins}},
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
 
     db.init_app(application)
