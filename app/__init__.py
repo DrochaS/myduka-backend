@@ -52,12 +52,14 @@ def create_app(config_object=Config):
     from app.routes.auth import auth_bp
     from app.routes.clerk import clerk_bp
     from app.routes.merchant import merchant_bp
+    from app.routes.storefront import storefront_bp
 
     application.register_blueprint(auth_bp, url_prefix="/api/auth")
     application.register_blueprint(clerk_bp, url_prefix="/api/clerk")
     application.register_blueprint(admin_bp, url_prefix="/api/admin")
     application.register_blueprint(merchant_bp, url_prefix="/api/merchant")
     application.register_blueprint(analytics_bp, url_prefix="/api/analytics")
+    application.register_blueprint(storefront_bp, url_prefix="/api/storefront")
 
     @application.get("/health")
     def health():
