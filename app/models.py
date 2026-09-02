@@ -24,6 +24,21 @@ class PaymentStatus(str, enum.Enum):
     NOT_PAID = "not_paid"
 
 
+class PaymentMethod(str, enum.Enum):
+    CASH = "cash"
+    MPESA = "mpesa"
+    CARD = "card"
+
+
+class OrderStatus(str, enum.Enum):
+    CONFIRMED = "confirmed"
+
+
+class OrderPaymentStatus(str, enum.Enum):
+    PENDING = "pending"
+    PAID = "paid"
+
+
 class SupplyRequestStatus(str, enum.Enum):
     PENDING = "pending"
     APPROVED = "approved"
@@ -119,6 +134,7 @@ class Product(db.Model):
     # Relationships
     stock_entries = db.relationship('StockEntry', backref='product', lazy=True, cascade="all, delete-orphan")
     supply_requests = db.relationship('SupplyRequest', backref='product', lazy=True)
+    order_items = db.relationship('OrderItem', backref='product', lazy=True)
 
     def to_dict(self):
         return {
@@ -133,6 +149,64 @@ class Product(db.Model):
             'quantity_in_stock': self.quantity_in_stock,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Order(db.Model):
+    __tablename__ = 'orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_id = db.Column(db.Integer, db.ForeignKey('stores.id'), nullable=False)
+    customer_name = db.Column(db.String(120), nullable=False)
+    customer_phone = db.Column(db.String(30), nullable=False)
+    customer_email = db.Column(db.String(120), nullable=True)
+    payment_method = db.Column(db.Enum(PaymentMethod), nullable=False)
+    payment_status = db.Column(
+        db.Enum(OrderPaymentStatus), default=OrderPaymentStatus.PENDING, nullable=False
+    )
+    status = db.Column(
+        db.Enum(OrderStatus), default=OrderStatus.CONFIRMED, nullable=False
+    )
+    total_amount = db.Column(db.Float, nullable=False, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    store = db.relationship('Store', backref=db.backref('orders', lazy=True))
+    items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self):
+        def enum_value(value):
+            return value.value if isinstance(value, enum.Enum) else value
+
+        return {
+            'id': self.id,
+            'store_id': self.store_id,
+            'customer_name': self.customer_name,
+            'customer_phone': self.customer_phone,
+            'customer_email': self.customer_email,
+            'payment_method': enum_value(self.payment_method),
+            'payment_status': enum_value(self.payment_status),
+            'status': enum_value(self.status),
+            'total_amount': self.total_amount,
+            'items': [item.to_dict() for item in self.items],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class OrderItem(db.Model):
+    __tablename__ = 'order_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'product_id': self.product_id,
+            'quantity': self.quantity,
+            'unit_price': self.unit_price,
         }
 
 
