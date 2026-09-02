@@ -82,3 +82,19 @@ class ProductCreateSchema(Schema):
     buy_price = fields.Float(load_default=0.0)
     sell_price = fields.Float(load_default=0.0)
     quantity_in_stock = fields.Int(load_default=0)
+
+
+class CheckoutItemSchema(Schema):
+    product_id = fields.Int(required=True)
+    quantity = fields.Int(required=True, validate=validate.Range(min=1))
+
+
+class CheckoutSchema(Schema):
+    store_id = fields.Int(required=True)
+    customer_name = fields.Str(required=True, validate=validate.Length(min=1, max=120))
+    customer_phone = fields.Str(required=True, validate=validate.Length(min=7, max=20))
+    customer_email = fields.Email(required=False, allow_none=True)
+    payment_method = fields.Str(
+        required=True, validate=validate.OneOf(["card", "cash", "mpesa"])
+    )
+    items = fields.List(fields.Nested(CheckoutItemSchema), required=True, validate=validate.Length(min=1))
