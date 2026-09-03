@@ -76,23 +76,23 @@ with app.app_context():
     db.session.commit()
 
     print("Seeding products per store...")
-    # Catalog: (name, category, buy_price, sell_price, image_url)
+    # Catalog: (name, category, sku, buy_price, sell_price, image_url)
     catalog = [
-        ("Jogoo Maize Meal 2kg", "Groceries", 130.00, 160.00,
+        ("Jogoo Maize Meal 2kg", "Groceries", "GRO-006", 130.00, 160.00,
          "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=500"),
-        ("Fresh Fri Cooking Oil 2L", "Groceries", 520.00, 600.00,
+        ("Fresh Fri Cooking Oil 2L", "Groceries", "GRO-003", 520.00, 600.00,
          "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500"),
-        ("KCC Fresh Milk 500ml", "Dairy", 55.00, 70.00,
+        ("KCC Fresh Milk 500ml", "Dairy", "DRY-001", 55.00, 70.00,
          "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=500"),
-        ("Kericho Gold Black Tea 100 Bags", "Beverages", 280.00, 350.00,
+        ("Kericho Gold Black Tea 100 Bags", "Beverages", "BEV-004", 280.00, 350.00,
          "https://images.unsplash.com/photo-1597481499750-3e6b22637e12?w=500"),
-        ("Mwea Pishori Rice 5kg", "Groceries", 950.00, 1150.00,
+        ("Mwea Pishori Rice 5kg", "Groceries", "GRO-005", 950.00, 1150.00,
          "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500"),
-        ("Supa Loaf White Bread 400g", "Bakery", 55.00, 65.00,
+        ("Supa Loaf White Bread 400g", "Bakery", "BKY-002", 55.00, 65.00,
          "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500"),
-        ("Omo Washing Powder 1kg", "Household", 310.00, 380.00,
+        ("Omo Washing Powder 1kg", "Household", "HOU-007", 310.00, 380.00,
          "https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=500"),
-        ("Keringet Still Mineral Water 1.5L", "Beverages", 70.00, 100.00,
+        ("Keringet Still Mineral Water 1.5L", "Beverages", "BEV-008", 70.00, 100.00,
          "https://images.unsplash.com/photo-1560023907-5f339617ea30?w=500"),
     ]
 
@@ -110,10 +110,11 @@ with app.app_context():
     for store_id, stock_by_index in store_stock.items():
         products[store_id] = {}
         for idx, qty in stock_by_index.items():
-            name, category, buy_price, sell_price, image_url = catalog[idx]
+            name, category, sku, buy_price, sell_price, image_url = catalog[idx]
             product = Product(
                 name=name,
                 category=category,
+                sku=sku,
                 store_id=store_id,
                 buy_price=buy_price,
                 sell_price=sell_price,
