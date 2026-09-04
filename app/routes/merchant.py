@@ -6,11 +6,15 @@ from sqlalchemy import case, func
 
 from app.extensions import db
 from app.models import (
+    InviteToken,
+    Order,
+    OrderItem,
     PaymentStatus,
     Product,
     Role,
     StockEntry,
     Store,
+    SupplyRequest,
     User,
 )
 from app.schemas import ProductCreateSchema, StoreCreateSchema
@@ -75,6 +79,42 @@ def create_store(merchant: User):
     return jsonify(store.to_dict()), 201
 
 
+@merchant_bp.delete("/stores/<int:store_id>")
+@merchant_required
+def delete_store(merchant: User, store_id: int):
+    store = db.session.get(Store, store_id)
+    if store is None:
+        return jsonify({"error": "Branch not found"}), 404
+
+    order_count = Order.query.filter_by(store_id=store.id).count()
+    if order_count > 0:
+        return jsonify(
+            {
+                "error": (
+                    f"Cannot delete this branch: it has {order_count} order(s) on record. "
+                    "Orders must be kept for historical records."
+                )
+            }
+        ), 409
+
+    # Unassign any admins/clerks tied to this branch rather than deleting their accounts.
+    User.query.filter_by(store_id=store.id).update({"store_id": None})
+
+    # Pending invites tied to this store no longer make sense once it's gone.
+    InviteToken.query.filter_by(store_id=store.id).delete()
+
+    # Supply requests reference the store directly and aren't cascade-deleted
+    # through the Product relationship, so clear them explicitly.
+    SupplyRequest.query.filter_by(store_id=store.id).delete()
+
+    # Products (and their StockEntries, via the Product model's own cascade)
+    # are removed automatically by Store's "all, delete-orphan" cascade below.
+    db.session.delete(store)
+    db.session.commit()
+
+    return jsonify({"message": "Branch deleted"}), 200
+
+
 @merchant_bp.post("/products")
 @merchant_required
 def create_product(merchant: User):
@@ -101,6 +141,31 @@ def create_product(merchant: User):
     db.session.add(product)
     db.session.commit()
     return jsonify(product.to_dict()), 201
+
+
+@merchant_bp.delete("/products/<int:product_id>")
+@merchant_required
+def delete_product(merchant: User, product_id: int):
+    product = db.session.get(Product, product_id)
+    if product is None:
+        return jsonify({"error": "Product not found"}), 404
+
+    order_count = OrderItem.query.filter_by(product_id=product.id).count()
+    if order_count > 0:
+        return jsonify(
+            {"error": f"Cannot delete: this product appears in {order_count} order(s)."}
+        ), 409
+
+    request_count = SupplyRequest.query.filter_by(product_id=product.id).count()
+    if request_count > 0:
+        return jsonify(
+            {"error": f"Cannot delete: this product has {request_count} supply request(s) on record."}
+        ), 409
+
+    # StockEntry rows are removed automatically via Product's own cascade.
+    db.session.delete(product)
+    db.session.commit()
+    return jsonify({"message": "Product deleted"}), 200
 
 
 @merchant_bp.get("/reports/stores")
